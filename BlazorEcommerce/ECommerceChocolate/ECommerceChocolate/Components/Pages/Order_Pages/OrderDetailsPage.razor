@@ -1,0 +1,147 @@
+﻿@page "/Order/Details/{OrderId:int}"
+@inject IOrderRepository orderRepository
+@inject IProductRepository productRepository
+@inject AuthenticationStateProvider _AuthenticationStateProvider
+@using ECommerceChocolate.Utility
+@inject IJSRuntime _js
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+<PageTitle>Order Details</PageTitle>
+
+@if (IsProcessing)
+{
+	<div class="position-absolute w-100 vh-100 d-flex flex-column align-items-center bg-white justify-content-center">
+		<img src="/Images/loading.gif" alt="loading"/>
+	</div>
+}
+else
+{
+    <div class="container my-5 mx-auto p-5 w-100" style="max-width: 950px;">
+        <div class="card" style="max-width: 750px;">
+            <div class="pt-3 text-success text-center">
+                <span class="h4"> ORDER DETAILS</span>
+            </div>
+
+            <hr />
+            <div class="px-3">
+                <p><b>Order Id:</b> @Order.Id</p>
+                <p><b>Name:</b> @Order.Name</p>
+                <p><b>Email:</b> @Order.Email</p>
+                <p><b>Phone:</b> @Order.PhoneNumber</p>
+                <p class="text-nowrap">
+                    <b>Order Status: </b> 
+                    @if (Order.Status == StaticDetails.Status_Ready || Order.Status == StaticDetails.Status_Processing)
+                    {
+                        <span class="text-primary">@(StaticDetails.Status_Ready == Order.Status ? "Ready For PickUp" : "Processing")</span>
+                    }
+                    else
+                    {
+                        @if (Order.Status == StaticDetails.Status_Completed)
+                        {
+                            <span class="text-success">@Order.Status</span>
+                        }
+                        else
+                        {
+                            <span class="text-danger">@Order.Status</span>
+                        }
+                    }
+                    
+                </p>
+            </div>
+            <hr />
+            <div class="card-body">
+                <h4 class="text-success">Menu Items</h4>
+
+                @foreach(var item in Order.orderContents){
+                <div class="d-flex">
+                    <div class="d-flex w-100 justify-content-between">
+                        <p>
+								&nbsp; -- @item.ProductName
+                        </p>
+                        <p>
+								@item.Price.ToString("C", CultureInfo.GetCultureInfo("el-GR")) x @item.Quantity = 
+                        </p>
+                    </div>
+                    <div class="text-nowrap ms-1">
+                             @((item.Price* item.Quantity).ToString("C", CultureInfo.GetCultureInfo("el-GR")))
+                    </div>
+
+                </div>
+                }
+
+                <hr />
+                <h4 class="text-success text-end">
+					@Order.OrderTotal.ToString("C", CultureInfo.GetCultureInfo("el-GR"))
+                </h4>
+                <hr />
+
+                <div class="row">
+                    <div class="col-5">
+                        <a href="Order/List" class="btn btn-secondary  m-2 p-2" style="width:150px;">Back to Orders</a>
+                    </div>
+                    <div class="col-7 text-end">
+                        @if(Order.Status != StaticDetails.Status_Completed && Order.Status != StaticDetails.Status_Cancelled && _AuthenticationStateProvider.GetAuthenticationStateAsync().GetAwaiter().GetResult().User?.IsInRole(StaticDetails.Role_Admin) == true)
+                        {
+                            <button class="btn btn-danger m-2 p-2" style="width:150px;" @onclick="()=>UpdateStatus(StaticDetails.Status_Cancelled)">Cancel</button>
+                            
+                            if(Order.Status == StaticDetails.Status_Ready)
+                            {
+                                <button class="btn btn-success m-2 p-2" style="width:150px;" @onclick="()=>UpdateStatus(StaticDetails.Status_Completed)">Completed</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-primary m-2 p-2" style="width:150px;" @onclick="()=>UpdateStatus(StaticDetails.Status_Ready)">Ready for Pickup</button>
+                            }
+
+                            
+						}
+	
+
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsProcessing { get; set; } = true;
+    [Parameter]
+    public int OrderId { get; set; }
+    private OrderDetails Order = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadOrder();
+            IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadOrder()
+    {
+
+
+        Order = await orderRepository.GetOrderAsync(OrderId);
+    }
+
+    private async Task UpdateStatus(string newStatus)
+    {
+        if(newStatus == StaticDetails.Status_Cancelled)
+        {
+            foreach (var item in Order.orderContents)
+            {
+                item.product.Stock += item.Quantity;
+            }
+        }
+        
+
+
+        await orderRepository.UpdateOrderStatusAsync(Order.Id, newStatus);
+        _js.ToastrSuccess("Status Updated Successfully");
+    }
+
+}

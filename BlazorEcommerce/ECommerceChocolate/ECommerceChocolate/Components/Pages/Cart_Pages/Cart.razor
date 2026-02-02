@@ -1,9 +1,12 @@
 ﻿@page "/Cart"
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components
 @inject IProductRepository productRepository
 @inject IShoppingCartRepository shoppingCartRepository
+@inject IOrderRepository orderRepository
 @inject AuthenticationStateProvider _AuthenticationStateProvider
 @inject IJSRuntime _js
+@inject NavigationManager _navigationManager
 @attribute [Authorize]
 <PageTitle>Cart</PageTitle>
 
@@ -68,28 +71,28 @@ else
 				<div class="card-header text-success text-center display-6">
 					Pickup Details
 				</div>
-				<EditForm Model="OrderDetails" FormName="CartForm" OnValidSubmit="ProcessOrderCreation">
+				<EditForm Model="UserOrderDetails" FormName="CartForm" OnValidSubmit="()=>ProcessOrderCreation(UserOrderDetails)">
 					<DataAnnotationsValidator />
 					<div class="card-body">
 						<div class="form-group">
 							<label>Name</label>
-							<InputText @bind-Value="OrderDetails.Name" type="text" class="form-control" />
-							<ValidationMessage For="@(() => OrderDetails.Name)" />
+							<InputText @bind-Value="UserOrderDetails.Name" type="text" class="form-control" />
+							<ValidationMessage For="@(() => UserOrderDetails.Name)" />
 						</div>
 						<div class="form-group">
 							<label>Email</label>
-							<InputText @bind-Value="OrderDetails.Email" type="text" class="form-control" />
-							<ValidationMessage For="@(() => OrderDetails.Email)" />
+								<InputText @bind-Value="UserOrderDetails.Email" type="text" class="form-control" />
+								<ValidationMessage For="@(() => UserOrderDetails.Email)" />
 						</div>
 						<div class="form-group">
 							<label>Phone</label>
-							<InputText @bind-Value="OrderDetails.PhoneNumber" type="text" class="form-control" />
-							<ValidationMessage For="@(() => OrderDetails.PhoneNumber)" />
+								<InputText @bind-Value="UserOrderDetails.PhoneNumber" type="text" class="form-control" />
+								<ValidationMessage For="@(() => UserOrderDetails.PhoneNumber)" />
 						</div>
 						<div class="card mt-4 bg-light">
 							<div class="card-body">
 								<h4>
-									Grand Total: @OrderDetails.OrderTotal.ToString("C", CultureInfo.GetCultureInfo("el-GR"))
+										Grand Total: @UserOrderDetails.OrderTotal.ToString("C", CultureInfo.GetCultureInfo("el-GR"))
 								</h4>
 								<h4>
 									No. of Items: @TotalItems
@@ -98,7 +101,7 @@ else
 
 						</div>
 					</div>
-					<button class="btn btn-success m-4">
+					<button class="btn btn-success m-4" type="submit">
 						Looks Good? Place Order!
 					</button>
 
@@ -123,15 +126,15 @@ else
 	private IEnumerable<ShoppingCart> ShoppingCarts = new List<ShoppingCart>();
 	private bool IsProcessing { get; set; } = true;
 	[SupplyParameterFromForm]
-	public OrderDetails OrderDetails { get; set; } = new OrderDetails();
+	public OrderDetails UserOrderDetails { get; set; } = new OrderDetails();
 	private int TotalItems { get; set; } = 0;
 
 	protected override async Task OnInitializedAsync()
 	{
 		var authState = await _AuthenticationStateProvider.GetAuthenticationStateAsync();
 		var user = authState.User;
-		OrderDetails.Email = user.FindFirst(u => u.Type.Contains("email"))?.Value;
-		OrderDetails.UserId = user.FindFirst(u => u.Type.Contains("nameidentifier"))?.Value;
+		UserOrderDetails.Email = user.FindFirst(u => u.Type.Contains("email"))?.Value;
+		UserOrderDetails.UserId = user.FindFirst(u => u.Type.Contains("nameidentifier"))?.Value;
 
 	}
 
@@ -147,29 +150,57 @@ else
 
 	private async Task LoadCart()
 	{
-		ShoppingCarts = await shoppingCartRepository.GetAllAsync(OrderDetails.UserId);
+		ShoppingCarts = await shoppingCartRepository.GetAllAsync(UserOrderDetails.UserId);
 
-		OrderDetails.OrderTotal = 0;
+		UserOrderDetails.OrderTotal = 0;
 		TotalItems = 0;
 
 		foreach(var item in ShoppingCarts)
 		{
-			OrderDetails.OrderTotal += (Convert.ToDouble(item.Product.Price) * item.Quantity);
+			UserOrderDetails.OrderTotal += (Convert.ToDouble(item.Product.Price) * item.Quantity);
 			TotalItems += item.Quantity;
 		}
-		OrderDetails.OrderTotal = Math.Round(OrderDetails.OrderTotal, 2);
-		
+		UserOrderDetails.OrderTotal = Math.Round(UserOrderDetails.OrderTotal, 2);
+
 	}
 
 	private async Task UpdateCartItem(int productId, int updateBy)
 	{
-		
 
-		var result = await shoppingCartRepository.UpdateCartAsync(OrderDetails.UserId, productId, updateBy);
+
+		var result = await shoppingCartRepository.UpdateCartAsync(UserOrderDetails.UserId, productId, updateBy);
 		await LoadCart();
 	}
-	private async Task ProcessOrderCreation()
+	private async Task ProcessOrderCreation(OrderDetails orderDetails)
 	{
-		
+		int orderID = 0;
+		bool continueProcess = true;
+		IsProcessing = true;
+		foreach (var item in ShoppingCarts)
+		{
+			if (item.Quantity > item.Product.Stock)
+			{
+				await _js.ToastrError("Not enough stock for " + item.Product.Name + "<br/>The available stock is " + item.Product.Stock);
+
+				continueProcess = false;
+			}
+		}
+
+		if (continueProcess)
+		{
+			foreach (var item in ShoppingCarts)
+			{
+				orderDetails.orderContents.Add(new OrderContent { ProductName = item.Product.Name, Quantity = item.Quantity, Price = (double)item.Product.Price, product = item.Product });
+				item.Product.Stock -= item.Quantity;
+			}
+			;
+
+			orderID = await orderRepository.PlaceOrderAsync(orderDetails);
+			await shoppingCartRepository.ClearCartAsync(orderDetails.UserId);
+
+
+			_navigationManager.NavigateTo($"/Order/order-confirmation/{orderID}");
+		}
+		IsProcessing = false;
 	}
 }

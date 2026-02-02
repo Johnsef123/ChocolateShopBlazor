@@ -1,0 +1,122 @@
+﻿@page "/Order/order-confirmation"
+@page "/Order/order-confirmation/{orderId:int}"
+@inject AuthenticationStateProvider _AuthenticationStateProvider
+@inject IOrderRepository orderRepository
+@inject NavigationManager navigationManager
+@inject IJSRuntime _js
+@using ECommerceChocolate.Utility
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+<PageTitle>Order Confirmation</PageTitle>
+
+
+@if (IsProcessing)
+{
+    <div class="position-absolute w-100 vh-100 d-flex flex-column align-items-center bg-white justify-content-center">
+        <img src="/Images/loading.gif" alt="loading" />
+    </div>
+}
+else
+{
+
+    
+    <div class="container my-5 mx-auto p-5 w-100" style="max-width: 950px;">
+        
+        <div class="card" style="max-width: 750px;">
+            
+            <div class="pt-3 text-success text-center">
+                <span class="h2"> Your Order was Successfully Placed</span>
+            </div>
+
+            <hr />
+            <div class="px-3">
+                <p><b>Order Id:</b> @Order.Id</p>
+                <p><b>Name:</b> @Order.Name</p>
+                <p><b>Email:</b> @Order.Email</p>
+                <p><b>Phone:</b> @Order.PhoneNumber</p>
+                <p class="text-nowrap">
+                    <b>Order Status: </b>
+                    @if (Order.Status == StaticDetails.Status_Ready || Order.Status == StaticDetails.Status_Processing)
+                    {
+                        <span class="text-primary">@(StaticDetails.Status_Ready == Order.Status ? "Ready For PickUp":"Processing" )</span>
+                    }
+                    else
+                    {
+                        @if (Order.Status == StaticDetails.Status_Completed)
+                        {
+                            <span class="text-success">@Order.Status</span>
+                        }
+                        else
+                        {
+                            <span class="text-danger">@Order.Status</span>
+                        }
+                    }
+
+                </p>
+            </div>
+            <hr />
+            <div class="card-body">
+                <h4 class="text-success">Menu Items</h4>
+
+                @foreach (var item in Order.orderContents)
+                {
+                    <div class="d-flex">
+                        <div class="d-flex w-100 justify-content-between">
+                            <p>
+                                &nbsp; -- @item.ProductName
+                            </p>
+                            <p>
+                                @item.Price.ToString("C", CultureInfo.GetCultureInfo("el-GR")) x @item.Quantity =
+                            </p>
+                        </div>
+                        <div class="text-nowrap ms-1">
+                            @((item.Price * item.Quantity).ToString("C", CultureInfo.GetCultureInfo("el-GR")))
+                        </div>
+
+                    </div>
+                }
+
+                <hr />
+                <h4 class="text-success text-end">
+                    @Order.OrderTotal.ToString("C", CultureInfo.GetCultureInfo("el-GR"))
+                </h4>
+                <hr />
+
+                <div class="row">
+                    <div class="col-5">
+                        <a href="Order/List" class="btn btn-secondary  m-2 p-2" style="width:150px;">Back</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+    private string UserId;
+    private OrderDetails Order;
+    private bool IsProcessing { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await _AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        UserId = user.FindFirst(u => u.Type.Contains("nameidentifier"))?.Value;
+
+        await LoadOrder(OrderId);
+        IsProcessing = false;
+
+    }
+
+    private async Task LoadOrder(int orderId)
+    {
+        Order = await orderRepository.GetOrderAsync(orderId);
+        if (Order == null)
+        {
+            navigationManager.NavigateTo("/Cart");
+        }
+    }
+
+}

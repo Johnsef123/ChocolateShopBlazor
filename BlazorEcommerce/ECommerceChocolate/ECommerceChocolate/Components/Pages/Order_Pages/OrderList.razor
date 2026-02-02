@@ -1,2 +1,141 @@
 ﻿@page "/Order/List"
-Order List Page
+@using ECommerceChocolate.Utility
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@inject IOrderRepository orderRepository
+@inject NavigationManager _navigationManager
+@attribute [Authorize]
+<PageTitle>Order List</PageTitle>
+
+@if (IsProcessing)
+{
+	<div class="position-absolute w-100 vh-100 d-flex flex-column align-items-center bg-white justify-content-center">
+		<img src="/Images/loading.gif" alt="loading" />
+	</div>
+}
+else
+{
+	<div class="card shadow border-0 m-4">
+		<div class="card-header bg-black bg-gradient py-3">
+			<div class="row">
+				<div class="col-12 text-center">
+					<h2 class="text-white py-2">
+						Order List
+					</h2>
+				</div>
+			</div>
+		</div>
+		<div class="card-body p-4">
+			
+			@if (Orders.Any())
+			{
+				<table class="table table-bordered table-striped">
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>Name</th>
+							<th>Phone Number</th>
+							<th>Email</th>
+							<th>Order Total</th>
+							<th>Order Status</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						@foreach (var item in Orders)
+						{
+							<tr>
+								<td>@item.Id</td>
+								<td>@item.Name</td>
+								<td>@item.PhoneNumber</td>
+								<td>@item.Email</td>
+								<td>@item.OrderTotal.ToString("C",CultureInfo.GetCultureInfo("el-GR"))</td>
+								<td>
+									@if (item.Status == StaticDetails.Status_Ready || item.Status == StaticDetails.Status_Processing)
+									{
+										<span class="text-primary">@(StaticDetails.Status_Ready == item.Status ? "Ready For PickUp" : "Processing")</span>
+									}
+									else
+									{
+										@if (item.Status == StaticDetails.Status_Completed)
+										{
+											<span class="text-success">@item.Status</span>
+										}
+										else
+										{
+											<span class="text-danger">@item.Status</span>
+										}
+									}
+								</td>
+								<td>
+									<a href="@($"/Order/Details/{item.Id}")" class="btn btn-primary"><i class="bi bi-pencil-square"></i>  Details</a>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+
+		</div>
+
+	</div>
+}
+
+
+
+
+@code {
+	private bool IsProcessing { get; set; } = true;
+	private IEnumerable<OrderDetails> Orders { get; set; } = new List<OrderDetails>();
+	private bool IsAdmin { get; set; } = false;
+	private string? UserId { get; set; }
+
+
+	[CascadingParameter]
+	public Task<AuthenticationState> authenticationState { get; set; }
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			await LoadOrders();
+			IsProcessing = false;
+			StateHasChanged();
+		}
+	}
+
+	private async Task LoadOrders()
+	{
+		IsProcessing = true;
+		StateHasChanged();
+		await CheckAuthorization();
+
+		if(IsAdmin == true)
+		{
+			Orders = await orderRepository.GetOrdersAsync(null);
+		}
+		else
+		{
+			Orders = await orderRepository.GetOrdersAsync(UserId);
+		}
+
+
+		
+		IsProcessing = false;
+	}
+
+	private async Task CheckAuthorization()
+	{
+		if(authenticationState != null)
+		{
+			var authState = await authenticationState;
+			var user = authState?.User;
+			
+			IsAdmin = user.IsInRole(@StaticDetails.Role_Admin);
+			UserId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+		}
+	}
+
+	
+
+}

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using ECommerceChocolate.Utility;
 
 namespace ECommerceChocolate.Data
 {
@@ -8,22 +9,22 @@ namespace ECommerceChocolate.Data
         public string UserId { get; set; }
 
         [Required]
-        [Display(Name="Order Total")]
+        [Display(Name = "Order Total")]
         public double OrderTotal { get; set; }
 
         [Required]
-        public string Status { get; set; }
+        public string Status { get; set; } = StaticDetails.Status_Processing;
 
         [Required]
-        [Display(Name="Name")]
+        [Display(Name = "Name")]
         public string Name { get; set; }
 
         [Required]
-        [Display(Name="Phone Number")]
+        [Display(Name = "Phone Number")]
         public string PhoneNumber { get; set; }
 
         [Required]
-        [Display(Name="Email Address")]
+        [Display(Name = "Email Address")]
         public string Email { get; set; }
 
         public ICollection<OrderContent> orderContents { get; set; } = new List<OrderContent>();

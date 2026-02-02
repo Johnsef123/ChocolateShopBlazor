@@ -6,7 +6,9 @@
 @inject NavigationManager _navigationManager
 @inject IWebHostEnvironment _webHostEnvironment
 @inject IJSRuntime _jsRuntime
-
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+<PageTitle>@(Id > 0 ? "Update Product" : "Create New Product")</PageTitle>
 
 
 @if (IsProcessing)

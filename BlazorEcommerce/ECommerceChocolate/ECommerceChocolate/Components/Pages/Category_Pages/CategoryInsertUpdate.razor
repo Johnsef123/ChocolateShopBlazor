@@ -4,7 +4,10 @@
 @inject ICategoryRepository _categoryRepository
 @inject NavigationManager _navigationManager
 @inject IJSRuntime _jsRuntime
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 
+<PageTitle>@(Id > 0 ? "Update Category" : "Create New Category")</PageTitle>
 
 
 @if (IsProcessing)
